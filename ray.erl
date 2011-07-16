@@ -9,7 +9,7 @@
 -record(ray,{v1,base}).
 
 
--define(eye,#vector{x=200,y=200,z=-400}).
+-define(eye,#vector{x=300,y=200,z=-400}).
 -define(image,#plane{
         v1 = #vector{x=1},
         v2 = #vector{y=1},
@@ -34,8 +34,8 @@ mulVectorScalar(A,#vector{x=X,y=Y,z=Z}) ->
 mulVector(#vector{x=A1,y=A2,z=A3},#vector{x=B1,y=B2,z=B3}) ->
     A1*B1 + A2*B2 + A3*B3.
 
-normVector(#vector{x=X,y=Y,z=Z}) ->
-    math:sqrt(X*X+Y*Y+Z*Z).
+normVector(v) ->
+    math:sqrt(mulVector(v,v)).
 
 getRays(Source,Plane,NoX,NoY) ->
     PlanePoints = [ getPointInPlane(Plane,X,Y) ||
@@ -62,10 +62,10 @@ createRay(V1,V2) ->
     }.
 
 intersect(#ray{v1=V,base=B}=Ray,#ball{m=M,r=R}) ->
-    Z = addVector(B,M),
+    Z = addVector(mulVectorScalar(-1,M),B),
     A = mulVector(V,V),
-    P = mulVector(V,Z) / A,
-    Q = mulVector(Z,Z) + math:pow(R,2) / A,
+    P = 2*mulVector(V,Z) / A,
+    Q = (mulVector(Z,Z) - math:pow(R,2)) / A,
     Rad = math:pow(P/2,2) - Q,
     if
         Rad < 0 ->
@@ -74,22 +74,39 @@ intersect(#ray{v1=V,base=B}=Ray,#ball{m=M,r=R}) ->
             {getPointInRay(Ray,P/2)};
         true ->
             {
-                getPointInRay(Ray,P/2+math:sqrt(Rad)),
-                getPointInRay(Ray,P/2-math:sqrt(Rad))
+                getPointInRay(Ray,-P/2+math:sqrt(Rad)),
+                getPointInRay(Ray,-P/2-math:sqrt(Rad))
             }
     end.
+%intersect(#ray{v1=V1,base=B1}=Ray,#ray{v1=V2,base=B2}) ->%%    .
+
+parmap(F, L) ->
+    Parent = self(),
+    [receive {Pid, Result} -> Result end || Pid <- [spawn(fun() -> Parent ! {self(), F(X)} end) || X <- L]].
 
 setColorIfIntersects(Ray,Object) ->
     case intersect(Ray,Object) of
         {} ->
-            #color{};
+            false;
         _ ->
             #color{r=255}
     end.
 
+intersectsWithOne(Ray,Objects) ->
+    lists:foldr(
+        fun
+            (Object,Acc) ->
+                case setColorIfIntersects(Ray,Object) of
+                    false ->
+                        Acc;
+                    Color ->
+                        Color
+                end
+        end,#color{},Objects).
+
 writeToFile(Points,{DimX,DimY}) ->
     {ok,Fd} = file:open("my.pbm",[write]),
-    ok = io:format(Fd,"P3~n~w ~w~n",[DimX,DimY]),
+    ok = io:format(Fd,"P3~n~w ~w~n255~n",[DimY,DimX]),
     lists:foreach(
         fun
             (#color{r=R,g=G,b=B}) -> io:format(Fd,"~w ~w ~w~n",[R,G,B]) end,
@@ -100,8 +117,9 @@ writeToFile(Points,{DimX,DimY}) ->
 
 
 test() ->
-    Object = #ball{m=#vector{x=200,y=200,z=100},r=200},
+    Objects = [#ball{m=#vector{x=200,y=200,z=100},r=100}, #ball{m=#vector{x=900,y=300,z=2000},r=100}],
     Rays = getRays(?eye,?image,400,600),
-    lists:map(fun(Ray) -> setColorIfIntersects(Ray,Object) end,Rays).
+    
+    lists:map(fun(Ray) -> intersectsWithOne(Ray,Objects) end,Rays).
 
 
