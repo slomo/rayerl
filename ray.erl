@@ -77,8 +77,48 @@ intersect(#ray{v1=V,base=B}=Ray,#ball{m=M,r=R}) ->
                 getPointInRay(Ray,-P/2+math:sqrt(Rad)),
                 getPointInRay(Ray,-P/2-math:sqrt(Rad))
             }
-    end.
-%intersect(#ray{v1=V1,base=B1}=Ray,#ray{v1=V2,base=B2}) ->%%    .
+    end
+%    ;
+%intersect(#ray{v1=V1,base=B1}=Ray,#ray{v1=V2,v2=V3,base=B2}) ->
+    .
+
+
+solve([Last]) ->
+    Last;
+solve([Row|Remaining]) ->
+    NewRemaining = lists:map(
+        fun
+            (Remains) ->
+                mergeRows(Row,Remains)
+        end,
+        Remaining),
+    solve(NewRemaining).
+    
+    
+
+mergeRows([H1|_]=List1,[H2|_]=List2) ->
+    Fak = H1/H2,
+    List2Norm = lists:map(
+        fun
+            (Ele) ->
+                Ele * Fak
+        end,
+        List2),
+    io:format("~p~n~p~n~n",[List1,List2Norm]),
+    NewList = lists:zipwith(
+        fun 
+            (Ele1,Ele2) ->
+                Ele2 - Ele1
+        end,
+        List1,List2Norm),
+    lists:dropwhile(
+        fun 
+            (Ele) ->
+                0 == Ele
+        end,
+        NewList).
+
+
 
 parmap(F, L) ->
     Parent = self(),
